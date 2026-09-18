@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Dealcraft</AssemblyName>
+    <RootNamespace>Dealcraft</RootNamespace>
+    <TargetFramework>net6.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <!--
+    Where Schedule I is installed. No user path is committed here, so the
+    builder supplies it. Resolved in this order, first hit wins:
+
+      1. -p:ScheduleOneDir="/path/to/Schedule I" on the command line
+      2. a ScheduleOneDir environment variable (MSBuild reads it as a property)
+      3. the conventional Steam locations below, Windows and Linux
+
+    A candidate only counts if it actually holds MelonLoader/Il2CppAssemblies,
+    so a Steam folder without the mod loader installed is passed over rather
+    than chosen and then failing on a missing reference. If nothing resolves the
+    build stops with a message saying what to pass; see src/Dealcraft/README.md.
+  -->
+  <PropertyGroup>
+    <_S1Game>steamapps/common/Schedule I</_S1Game>
+    <_S1Marker>MelonLoader/Il2CppAssemblies</_S1Marker>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' != ''">
+    <!-- Accept Windows separators from the command line or the environment. -->
+    <ScheduleOneDir>$(ScheduleOneDir.Replace('\','/').TrimEnd('/'))</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>$(ProgramW6432)/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>$(ProgramFiles)/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>C:/Program Files (x86)/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>C:/SteamLibrary/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>D:/SteamLibrary/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>D:/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>$(HOME)/.local/share/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>$(HOME)/.steam/steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ScheduleOneDir)' == ''">
+    <_S1Try>$(HOME)/.var/app/com.valvesoftware.Steam/data/Steam/$(_S1Game)</_S1Try>
+    <ScheduleOneDir Condition="Exists('$(_S1Try)/$(_S1Marker)')">$(_S1Try)</ScheduleOneDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GameRefs>$(ScheduleOneDir)/MelonLoader/Il2CppAssemblies</GameRefs>
+    <LoaderRefs>$(ScheduleOneDir)/MelonLoader/net6</LoaderRefs>
+  </PropertyGroup>
+
+  <Target Name="CheckScheduleOneDir" BeforeTargets="BeforeResolveReferences">
+    <Error Condition="'$(ScheduleOneDir)' == ''"
+           Text="Dealcraft could not find Schedule I. Build with -p:ScheduleOneDir=&quot;/path/to/Schedule I&quot; or set a ScheduleOneDir environment variable. Point it at the folder holding MelonLoader/Il2CppAssemblies - run the game once with MelonLoader installed if that folder does not exist yet. See src/Dealcraft/README.md." />
+    <Error Condition="!Exists('$(GameRefs)')"
+           Text="ScheduleOneDir is '$(ScheduleOneDir)' but '$(GameRefs)' does not exist. Point ScheduleOneDir at the folder holding MelonLoader/Il2CppAssemblies. See src/Dealcraft/README.md." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="../Dealcraft.Core/Dealcraft.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="MelonLoader"><HintPath>$(LoaderRefs)/MelonLoader.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(LoaderRefs)/0Harmony.dll</HintPath></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(LoaderRefs)/Il2CppInterop.Runtime.dll</HintPath></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameRefs)/Assembly-CSharp.dll</HintPath></Reference>
+    <Reference Include="Il2CppScheduleOne.Core"><HintPath>$(GameRefs)/Il2CppScheduleOne.Core.dll</HintPath></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameRefs)/Il2Cppmscorlib.dll</HintPath></Reference>
+    <Reference Include="Il2CppFishNet.Runtime"><HintPath>$(GameRefs)/Il2CppFishNet.Runtime.dll</HintPath></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameRefs)/UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameRefs)/UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameRefs)/UnityEngine.IMGUIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameRefs)/UnityEngine.UI.dll</HintPath></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameRefs)/Unity.TextMeshPro.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameRefs)/UnityEngine.UIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameRefs)/UnityEngine.TextRenderingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameRefs)/UnityEngine.InputLegacyModule.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>
