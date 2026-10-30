@@ -21,8 +21,8 @@ handover for you. You keep the cash, your best stock and your evening.
 - **Deals on your schedule.** Tick the hours you are around. Accepted deals land
   in them, not in the middle of your night.
 - **Handovers that do themselves.** Talk to the customer and the goods are
-  packed. Playing solo? Switch it to *from anywhere* and finish deals from across
-  the map while the money lands in your pocket.
+  packed. Or switch it to *from anywhere* and finish deals from across the map
+  while the money lands in your pocket.
 - **Your Heavenly stays yours.** A customer who ordered Standard gets the cheapest
   grade that meets the contract, not the good stuff you were saving.
 - **Six means six.** Someone orders six and you carry jars? Dealcraft cuts the rest
@@ -68,8 +68,8 @@ join a host running Dealcraft, and that is not going to change.
 - It does **not** make goods appear. What is not in your pockets cannot be handed
   over.
 - It does **not** walk for you unless you ask. By default a handover waits until
-  you talk to the customer. *From anywhere* is the switch that drops the walk, and
-  in a session it should stay off; see
+  you talk to the customer. *From anywhere* is the switch that drops the walk; in
+  a session it serves the whole contract list from the host's inventory, see
   [Multiplayer, in more detail](#multiplayer-in-more-detail).
 - It does **not** touch your save. Remove the two files and the save loads in a
   vanilla game, unchanged.
@@ -464,7 +464,7 @@ the negotiated prices.
   on `Manual` who walks over to do it by hand finds the deal already gone. That
   is known, it is the owner's decision to keep the answer available with the
   warning on it rather than hide it, and the app says so on the line under the
-  option. Leave it off in a session unless that is what the table wants.
+  option.
 
 Dealcraft adds no networked objects, no message types and no assets of its own,
 so there is nothing for a vanilla client to be missing.
