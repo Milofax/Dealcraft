@@ -11,9 +11,6 @@ customers have texted.
 really pay, books the deal into the hours you actually play, and packs the
 handover for you. You keep the cash, your best stock and your evening.
 
-In one test session, five automatic handovers took a player from **$21 to
-$1,309**, and not one handover screen was filled in by hand.
-
 ## What you get
 
 - **The top price, every time.** No more guessing. Dealcraft reads the game's own
