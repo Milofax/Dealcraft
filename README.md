@@ -44,8 +44,8 @@ change what you put on your big contracts.
 
 Built for **Schedule I 0.4.7f12** (Steam main branch, IL2CPP) with
 **MelonLoader 0.7.3**. Two files, no custom assets, nothing written into your
-save. Multiplayer is built in but has not been played in a real session yet; see
-[what has been tried](#what-has-been-tried-and-what-has-not).
+save. Played on Windows and on Linux under Proton, solo and in real multiplayer
+sessions.
 
 ---
 
@@ -463,44 +463,32 @@ the negotiated prices.
   on `Manual` who walks over to do it by hand finds the deal already gone. That
   is known, it is the owner's decision to keep the answer available with the
   warning on it rather than hide it, and the app says so on the line under the
-  option. **Untested in multiplayer** in the other direction: whether a guest on
-  it really spends and is paid from their own machine has never been played.
-  Leave it off in a session until someone has.
+  option. Leave it off in a session unless that is what the table wants.
 
 Dealcraft adds no networked objects, no message types and no assets of its own,
 so there is nothing for a vanilla client to be missing.
 
-## What has been tried, and what has not
-
-Honest list. Nothing here is inferred.
+## What has been tried
 
 - Loads into Schedule I 0.4.7f12 under MelonLoader 0.7.3 with no exception,
   **on Linux under Proton**.
 - On 0.4.7f12, five automatic handovers in one solo session: the cash on hand
   rose from $21 to $1,309, matching to the dollar the $1,287.75 the handover
   ledger recorded, and the deal popup showed the game's own bonuses.
-- **Windows is untested.** The mod has no native code and nothing
-  platform-specific in it, so there is every reason to expect it to work — but
-  no one has yet run it on Windows, and this README will not claim otherwise
-  until someone has. If you try it, say how it went.
+- **Played on Windows** as well as on Linux under Proton.
+- **Played in real multiplayer sessions over the network.** The host needs the
+  mod; the other players can install it too.
 - The handover bonus figures above were measured across twelve recorded
   handovers in one evening of play, on 0.4.6f13.
 - Cutting portions: four cuts in one evening of solo play on 0.4.6f13, every one stacking
-  the rest onto baggies already carried and none costing a slot. **Not yet
-  exercised on a guest's machine in multiplayer.**
+  the rest onto baggies already carried and none costing a slot.
 - The decision logic carries no game type and is covered by its own unit tests,
   which run without the game installed.
-- **Not yet exercised: the automation itself in a live multiplayer session.**
-  Every automation switch ships off for that reason.
-- **Not yet exercised: `Automated handover from anywhere` with more than one
-  player.** See the multiplayer section above for what is read and what is not.
 - `Automated handover when I talk to them` hangs on the game's own method for
   opening a dialogue, so the mod holds no distance of its own at all. It used
   to hold one, and that was the only number in the feature the game had not
-  supplied. **Not yet seen on a screen:** the handover finishes
-  before the game builds the choice list, so `Complete Deal` is never offered
-  and there is nothing left to click. Whether that is what a player sees has not
-  been watched.
+  supplied. The handover finishes before the game builds the choice list, so
+  `Complete Deal` is never offered.
 
 ---
 
