@@ -43,10 +43,8 @@ And if you want to know what a handover is really worth, the numbers are
 [below](#what-a-handover-is-actually-worth): measured in play, and they will
 change what you put on your big contracts.
 
-Built for **Schedule I 0.4.7f12** (Steam main branch, IL2CPP) with
-**MelonLoader 0.7.3**. Two files, no custom assets, nothing written into your
-save. Played on Windows and on Linux under Proton, solo and in real multiplayer
-sessions.
+Works with **Schedule I 0.4.7**, the normal Steam version, and **MelonLoader**.
+Played on Windows and on Linux, solo and in real multiplayer sessions.
 
 ---
 
