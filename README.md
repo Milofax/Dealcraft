@@ -11,8 +11,9 @@ customers have texted.
 really pay, books the deal into the hours you actually play, and packs the
 handover for you. You keep the cash, your best stock and your evening.
 
-Sure, you could hire a dealer. But then you have to buy them a gun, chase after
-them all day, and you never know what they are really up to. **Dumpy Dump.**
+Sure, you could hire a dealer. But then you hand them a cut, buy them a gun so
+they don't get hurt, keep them restocked, and you never know what they are really
+up to. **Dumpy Dump.**
 
 ## What you get
 
