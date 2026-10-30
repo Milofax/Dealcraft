@@ -12,7 +12,7 @@ really pay, books the deal into the hours you actually play, and packs the
 handover for you. You keep the cash, your best stock and your evening.
 
 Sure, you could hire a dealer. But then you hand them a cut, buy them a gun so
-they don't get hurt, keep them restocked, and you never know what they are really
+they don't get robbed, keep them restocked, and you never know what they are really
 up to. **Dumpy Dump.**
 
 ## What you get
