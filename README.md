@@ -11,6 +11,11 @@ customers have texted.
 really pay, books the deal into the hours you actually play, and packs the
 handover for you. You keep the cash, your best stock and your evening.
 
+**Sure, you could hire a dealer. Don't be dumb.** A dealer takes a cut of every
+sale, sits on your cash until you come and collect it, can get robbed of your
+goods and your money, and you never see how a deal really went. With Dealcraft
+you stay in charge and the whole payment is yours.
+
 ## What you get
 
 - **The top price, every time.** No more guessing. Dealcraft reads the game's own
