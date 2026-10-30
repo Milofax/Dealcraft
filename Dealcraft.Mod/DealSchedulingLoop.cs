@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Dealcraft.Core;
 using Il2CppScheduleOne.Economy;
 using Il2CppScheduleOne.GameTime;
+using Il2CppScheduleOne.Messaging;
 using Il2CppScheduleOne.NPCs;
 using UnityEngine;
 
@@ -25,7 +26,10 @@ namespace Dealcraft;
 /// which is the method the player's own window selector calls and which ends in
 /// <c>SendContractAccepted(window, trackContract: true)</c>, which is why a human
 /// and the automation cannot produce different results
-/// from the same choice. No new NetworkObject, RPC type, prefab or asset is
+/// from the same choice. A customer with no reply to give is the one exception:
+/// that deal goes straight to <c>Customer.ContractAccepted</c>, the call the same
+/// RPC ends in, so the contract is the same and the conversation shows no reply
+/// and no reaction. No new NetworkObject, RPC type, prefab or asset is
 /// introduced; the vanilla observer RPC carries the result to every client,
 /// modded or not.
 /// </para>
@@ -44,6 +48,9 @@ internal sealed class DealSchedulingLoop
     /// so that a session with a long customer list never costs a visible hitch.
     /// </summary>
     private const int CustomersPerFrame = 4;
+
+    /// <summary>The label the game gives the reply that takes a deal.</summary>
+    private const string AcceptResponse = "ACCEPT_CONTRACT";
 
     private readonly ContractClaimRegistry _claims;
     private readonly DealWindowRotation _rotation = new();
@@ -65,6 +72,12 @@ internal sealed class DealSchedulingLoop
     /// the same reason costs one line rather than one a second.
     /// </summary>
     private readonly Dictionary<string, string> _said = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// How long each customer has really kept their offer waiting, in game time,
+    /// so a paused game counts for nothing.
+    /// </summary>
+    private readonly OfferPatience _patience = new();
 
     /// <summary>
     /// Reports each accepted deal once the game has given its contract real
@@ -105,6 +118,7 @@ internal sealed class DealSchedulingLoop
     {
         _windows.Forget();
         _said.Clear();
+        _patience.Clear();
         _live.Clear();
         _accepted.Forget();
         _announced = false;
@@ -322,6 +336,18 @@ internal sealed class DealSchedulingLoop
             return;
         }
 
+        // Let the customer finish first. The reply is the player's turn in a
+        // conversation someone may be reading, and taking it in a gap where the
+        // game has no reply up throws and would cost the claim.
+        OfferReadinessDecision ready = _patience.Consider(
+            offer.ContractKey, ReadConversation(customer), Time.time);
+        if (ready.Outcome == OfferReadinessOutcome.Wait)
+        {
+            Once(Subject(offer), $"{offer.CustomerName}: {ready.Reason}");
+            Record(offer, ScheduleDecision.Skip(ready.Reason));
+            return;
+        }
+
         // Look before claiming. A claim spent on a deal that then had nowhere
         // to go would lock that offer out for the rest of its life.
         ScheduleDecision available = _rotation.Peek(configuration.Windows, onOffer, now);
@@ -345,7 +371,39 @@ internal sealed class DealSchedulingLoop
         // Recorded inside Accept rather than here: this is where the window is
         // chosen, not where the deal is taken, and the game's own call can
         // still refuse it.
-        Accept(customer, offer, chosen, configuration);
+        Accept(customer, offer, chosen, ready, configuration);
+    }
+
+    /// <summary>
+    /// The customer's conversation as plain values. A reading that fails counts
+    /// as a counter-offer on its way, the one case that starts the wait afresh
+    /// and never has the deal overtake an answer.
+    /// </summary>
+    private static ConversationReading ReadConversation(Customer customer)
+    {
+        try
+        {
+            MSGConversation conversation = customer.NPC.MSGConversation;
+            if (conversation is null)
+            {
+                return new ConversationReading(exists: false, rollingOut: false, acceptOffered: false);
+            }
+
+            Il2CppSystem.Collections.Generic.List<Message> history = conversation._messageHistory;
+
+            return new ConversationReading(
+                exists: true,
+                rollingOut: conversation._rollingOut,
+                acceptOffered: conversation.GetResponse(AcceptResponse) is not null,
+                countered: customer.OfferedContractInfo.IsCounterOffer,
+                playerSpokeLast: history.Count > 0
+                    && history[history.Count - 1].sender == Message.ESenderType.Player);
+        }
+        catch (Exception)
+        {
+            return new ConversationReading(
+                exists: true, rollingOut: false, acceptOffered: false, playerSpokeLast: true);
+        }
     }
 
     /// <summary>
@@ -388,6 +446,7 @@ internal sealed class DealSchedulingLoop
         Customer customer,
         PendingOffer offer,
         ScheduleDecision chosen,
+        OfferReadinessDecision ready,
         SchedulingConfiguration configuration)
     {
         DealWindow window = chosen.Window;
@@ -397,7 +456,22 @@ internal sealed class DealSchedulingLoop
             // The player's own path: this sends the reply into the conversation,
             // clears the responses and performs SendContractAccepted(window,
             // trackContract: true). The server RPC is what every client sees.
-            customer.PlayerAcceptedContract((EDealWindow)(int)window);
+            if (ready.Outcome == OfferReadinessOutcome.Reply)
+            {
+                customer.PlayerAcceptedContract((EDealWindow)(int)window);
+            }
+            else
+            {
+                // The player's path reads a reply that is not there, so this is
+                // the server-side half of it. The contract and the observer
+                // RPCs are the same; only the line in the conversation is not.
+                _log($"{offer.CustomerName}: {ready.Reason}");
+                customer.ContractAccepted((EDealWindow)(int)window, true, null);
+
+                // Whatever buttons are still up answer an offer that is gone.
+                // The player's path clears them the same way.
+                customer.NPC.MSGConversation?.ClearResponses(true);
+            }
         }
         catch (Exception error)
         {
@@ -413,6 +487,7 @@ internal sealed class DealSchedulingLoop
         // The offer has ended, whatever became of the contract.
         _claims.Release(offer.ContractKey);
         _said.Remove(offer.ContractKey);
+        _patience.Forget(offer.ContractKey);
 
         Record(offer, chosen, acted: true);
         _accepted.Accepted(customer, offer.CustomerName, window);
@@ -507,6 +582,8 @@ internal sealed class DealSchedulingLoop
         {
             _said.Remove(subject);
         }
+
+        _patience.Retain(live);
     }
 
     /// <summary>

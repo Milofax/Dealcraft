@@ -448,10 +448,9 @@ public class OpeningOnePackageTests
     }
 
     /// <summary>
-    /// <b>The plan and the taking ask the same question of the same bag.</b>
-    /// Wherever the plan says it cuts, the package it names is the one
-    /// <see cref="PortionCut.Opened"/> chooses — they are the same call now, and
-    /// this holds them to it.
+    /// <b>A package holding more than the order is opened alone.</b> Wherever
+    /// <see cref="PortionCut.Opened"/> finds one, the plan names that package and
+    /// nothing else; the rest is <see cref="CuttingTheRemainderTests"/>.
     /// </summary>
     [Fact]
     public void Wherever_the_plan_cuts_it_cuts_the_package_that_would_be_opened()
@@ -479,7 +478,12 @@ public class OpeningOnePackageTests
 
             int opened = PortionCut.Opened(bag, order);
 
-            Assert.True(opened >= 0, $"the plan cut a bag with nothing to open, order {order}");
+            if (opened < 0)
+            {
+                continue;
+            }
+
+            Assert.Equal(opened, fill.Opened);
             Assert.Equal(1, fill.From(opened));
             Assert.Equal(order, fill.Units);
             Assert.Equal(1, fill.Positions);

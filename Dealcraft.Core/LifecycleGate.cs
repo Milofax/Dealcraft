@@ -54,6 +54,14 @@ public static class LifecyclePass
     /// </remarks>
     public static bool IsShared(string? pass) =>
         !string.Equals(pass, Handover, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether a pass answers a customer's offer, and so needs everything the
+    /// game walks through to take the deal.
+    /// </summary>
+    public static bool ActsOnOffers(string? pass) =>
+        string.Equals(pass, Scheduling, StringComparison.Ordinal)
+        || string.Equals(pass, Counteroffers, StringComparison.Ordinal);
 }
 
 /// <summary>The gate's answer, with the reason in the words the log uses.</summary>
@@ -145,6 +153,22 @@ public struct LifecycleConditions
     /// <summary>Whether the game reports a save as loaded and playable.</summary>
     public bool SaveLoaded { get; set; }
 
+    /// <summary>
+    /// Whether the game is loading or leaving a session. The loaded flag alone
+    /// does not cover a reload, which keeps it set while the world is rebuilt.
+    /// </summary>
+    public bool Loading { get; set; }
+
+    /// <summary>
+    /// What is missing from the path a deal takes, as
+    /// <see cref="AcceptPath.Gap"/> spells it: empty when everything is up.
+    /// </summary>
+    /// <remarks>
+    /// Null means nobody read it, and that stops a pass which needs it, so
+    /// forgetting to ask cannot wave a deal through.
+    /// </remarks>
+    public string? AcceptPathGap { get; set; }
+
     /// <summary>Whether the game is writing a save right now.</summary>
     /// <remarks>
     /// There is no second condition beside it. The guard used to be a setting —
@@ -186,6 +210,12 @@ public struct LifecycleConditions
 /// they are — see <see cref="LifecycleConditions.Shared"/>. The gate has no
 /// notion of how many observers there are, which is why a client disconnecting
 /// and reconnecting cannot reach it.
+/// </para>
+/// <para>
+/// <b>The session really running</b> is more than a loaded save. Accepting a deal
+/// walks the phone and the journal, so a pass that answers offers also needs
+/// those to exist, and every pass waits out a load. Answering "no" here spends
+/// nothing, because the gate is asked before anything is claimed.
 /// </para>
 /// <para>
 /// One gate, not one per pass. It was written for one loop and the three others
@@ -236,9 +266,24 @@ public static class LifecycleGate
                     $"the server is not connected as a client yet, and {pass} needs that");
         }
 
+        // After the server's answer, so a guest hears about the one thing that
+        // will not change rather than about the session it is joining.
+        if (conditions.Loading)
+        {
+            return LifecycleVerdict.StandDown($"the game is loading, so {pass} stands down");
+        }
+
         if (conditions.Saving)
         {
             return LifecycleVerdict.Wait($"the game is saving, so {pass} is standing by");
+        }
+
+        if (LifecyclePass.ActsOnOffers(conditions.Pass) && conditions.AcceptPathGap is not { Length: 0 })
+        {
+            return LifecycleVerdict.StandDown(
+                conditions.AcceptPathGap is null
+                    ? $"the game could not be checked for a deal, so {pass} stands down"
+                    : $"the game has no {conditions.AcceptPathGap} right now, so {pass} stands down");
         }
 
         return LifecycleVerdict.Act($"{pass} may run");

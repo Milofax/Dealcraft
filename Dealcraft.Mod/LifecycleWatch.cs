@@ -6,11 +6,12 @@ namespace Dealcraft;
 
 /// <summary>
 /// The one place the mod asks the game whether it may act at all: is a save
-/// loaded, is one being written, and is this machine the server.
+/// loaded, is the game loading, is a save being written, can the game take a
+/// deal, and is this machine the server.
 /// </summary>
 /// <remarks>
 /// <para>
-/// One watch for the whole mod, not one per feature. The three questions are
+/// One watch for the whole mod, not one per feature. The questions are
 /// about the session rather than about any one pass, the answers are the same
 /// for all of them on any given frame, and the rule that reads them
 /// (<see cref="LifecycleGate"/>) is one rule. Before this existed the save guard
@@ -20,7 +21,7 @@ namespace Dealcraft;
 /// <para>
 /// <b>Read once a frame.</b> Every pass asks, some of them more than once, and
 /// each question is an interop call into the game. The answers are cached
-/// against <c>Time.frameCount</c>, so a frame costs three readings however many
+/// against <c>Time.frameCount</c>, so a frame costs one reading however many
 /// times it is asked — and every pass in that frame decides from the same
 /// reading, which is what stops two of them disagreeing about whether a save is
 /// in progress.
@@ -41,7 +42,9 @@ internal sealed class LifecycleWatch
     private int _readOnFrame = -1;
 
     private bool _loaded;
+    private bool _loading;
     private bool _saving;
+    private string _acceptPathGap;
     private ServerAuthority _authority;
 
     /// <param name="warn">Where a reading that failed is reported, once.</param>
@@ -89,7 +92,9 @@ internal sealed class LifecycleWatch
             Authority = _authority,
             Shared = LifecyclePass.IsShared(pass),
             SaveLoaded = _loaded,
+            Loading = _loading,
             Saving = _saving,
+            AcceptPathGap = _acceptPathGap,
         });
     }
 
@@ -111,7 +116,9 @@ internal sealed class LifecycleWatch
 
         // Only worth asking while there is a world to save. On the main menu the
         // gate has already stood every pass down for want of a loaded save.
+        _loading = _loaded && _save.Loading();
         _saving = _loaded && _save.Saving();
+        _acceptPathGap = _loaded ? AcceptPathReader.Read() : null;
         _authority = ServerAuthorityReader.Read();
     }
 }

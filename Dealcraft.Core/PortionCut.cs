@@ -33,7 +33,9 @@ public static class PortionCut
     /// <remarks>
     /// Smallest, so a brick is left alone while a jar will do. A lot whose
     /// package holds no more than the order is not a candidate — there is
-    /// nothing to cut off it, and the ordinary fill already uses it whole.
+    /// nothing to cut off it whole, and where every lot is like that
+    /// <see cref="PackagePlan.Fill(IReadOnlyList{PackageLot}, int, bool)"/> sends
+    /// whole packages and opens one for what they leave.
     /// </remarks>
     public static int Opened(IReadOnlyList<PackageLot> lots, int order)
     {
@@ -67,6 +69,130 @@ public static class PortionCut
     public const int MostStacks = 4;
 
     /// <summary>
+    /// Every inventory write a cut makes, in the order it makes them: the slots
+    /// give up their packages first, and the remainder goes back after.
+    /// </summary>
+    /// <remarks>
+    /// <b>In that order so that a failure is a shortage and not a surplus.</b> A
+    /// write can fail halfway through, and <see cref="Out"/> then says what is out
+    /// of the bag at that moment. Goods that are out can be put back; a remainder
+    /// written before its package left would be product that never existed.
+    /// </remarks>
+    /// <param name="fill">The fill being carried out.</param>
+    /// <param name="stacks">How many stacks the remainder comes to.</param>
+    /// <param name="back">
+    /// Which stack goes back into the opened package's own slot, replacing all it
+    /// held in one write, or <c>-1</c> when none does.
+    /// </param>
+    public static IReadOnlyList<CutWrite> Writes(PackageFill fill, int stacks, int back)
+    {
+        var writes = new List<CutWrite>(fill.Lots + stacks);
+
+        for (int lot = 0; lot < fill.Lots; lot++)
+        {
+            if (fill.From(lot) > 0)
+            {
+                writes.Add(new CutWrite(lot, fill.From(lot), lot == fill.Opened ? back : -1));
+            }
+        }
+
+        for (int stack = 0; stack < stacks; stack++)
+        {
+            if (stack != back)
+            {
+                writes.Add(new CutWrite(-1, 0, stack));
+            }
+        }
+
+        return writes;
+    }
+
+    /// <summary>
+    /// What is out of the bag once the first <paramref name="landed"/> writes of
+    /// <paramref name="writes"/> have happened. With all of them that is what the
+    /// customer gets; with fewer it is what has to be put back.
+    /// </summary>
+    /// <param name="writes">The cut's writes, from <see cref="Writes"/>.</param>
+    /// <param name="landed">How many of them took effect.</param>
+    /// <param name="fill">The fill being carried out.</param>
+    /// <param name="emptiedOnly">
+    /// The last landed write replaced a slot's contents and stopped halfway: the
+    /// slot gave up what it held and the stack never went in. Replacing clears
+    /// first, so that state is real, and in it the slot's goods and the stack are
+    /// all out.
+    /// </param>
+    public static CutGoods Out(
+        IReadOnlyList<CutWrite> writes, int landed, PackageFill fill, bool emptiedOnly = false)
+    {
+        var whole = new List<int>();
+        var stacks = new List<int>();
+        bool portion = false;
+
+        for (int at = 0; at < landed; at++)
+        {
+            CutWrite write = writes[at];
+
+            if (write.Lot >= 0 && fill.Whole(write.Lot) > 0)
+            {
+                whole.Add(write.Lot);
+            }
+
+            if (write.Lot == fill.Opened)
+            {
+                portion = true;
+
+                foreach (CutWrite other in writes)
+                {
+                    if (other.Stack >= 0)
+                    {
+                        stacks.Add(other.Stack);
+                    }
+                }
+            }
+
+            if (write.Stack >= 0 && !(emptiedOnly && at == landed - 1))
+            {
+                stacks.Remove(write.Stack);
+            }
+        }
+
+        return new CutGoods(whole, portion, stacks);
+    }
+
+    /// <summary>
+    /// What the cut in <paramref name="fill"/> comes to, for the bag it was made
+    /// from.
+    /// </summary>
+    /// <remarks>
+    /// <b>The slot is counted after the whole packages have left it.</b> Two jars
+    /// in one slot, one sent whole and one opened, leave that slot empty, so the
+    /// remainder has it; counted before, the slot looks occupied and the same
+    /// handover asks for a free slot it does not need.
+    /// </remarks>
+    public static PortionSplit Split(
+        PackageFill fill,
+        IReadOnlyList<PackageLot> lots,
+        IReadOnlyList<int> packagings,
+        int stackLimit,
+        IReadOnlyList<int>? roomBeside)
+    {
+        if (!fill.Cuts)
+        {
+            return default;
+        }
+
+        PackageLot lot = lots[fill.Opened];
+
+        return Split(
+            lot.Packages - fill.Whole(fill.Opened),
+            lot.UnitsPerPackage,
+            fill.Portion,
+            packagings,
+            stackLimit,
+            roomBeside);
+    }
+
+    /// <summary>
     /// What opening one package of a lot comes to: how the portion is packaged,
     /// how the remainder is packaged, and how many free inventory slots putting it
     /// away needs.
@@ -79,7 +205,9 @@ public static class PortionCut
     /// share a slot.
     /// </param>
     /// <param name="unitsPerPackage">Units in one package of that lot.</param>
-    /// <param name="order">Units the contract asks for.</param>
+    /// <param name="order">
+    /// Units to cut: what the contract asks for, less any whole packages sent.
+    /// </param>
     /// <param name="packagings">
     /// Units held by each packaging the product allows, in any order — the game's
     /// own three are a baggie at one, a jar at five and a brick at twenty. Both
@@ -159,7 +287,7 @@ public static class PortionCut
         // as one position on the handover screen, and a portion arriving as two
         // would make that count a guess — four positions is the game's limit and a
         // handover that overruns it is refused after the goods have left the bag.
-        // So the order has to go into a single packaging, and where it will not,
+        // So the portion has to go into a single packaging, and where it will not,
         // there is no cut.
         if (!OneStack(order, packagings, stackLimit, out int portionUnits, out int portions))
         {
@@ -372,9 +500,9 @@ public readonly struct PortionSplit
     public int PortionUnits { get; }
 
     /// <summary>
-    /// Packages going to the customer. Their units come to the order exactly,
-    /// which is the point of cutting, and they are one stack and so one position
-    /// on the handover screen.
+    /// Packages going to the customer. With any whole packages their units come
+    /// to the order exactly, which is the point of cutting, and they are one stack
+    /// and so one position on the handover screen.
     /// </summary>
     public int Portions { get; }
 
@@ -391,6 +519,50 @@ public readonly struct PortionSplit
     /// empties itself as the package leaves.
     /// </summary>
     public int SlotsNeeded { get; }
+}
+
+/// <summary>One write to the inventory during a cut.</summary>
+public readonly struct CutWrite
+{
+    internal CutWrite(int lot, int packages, int stack)
+    {
+        Lot = lot;
+        Packages = packages;
+        Stack = stack;
+    }
+
+    /// <summary>The lot whose slot gives up packages, or <c>-1</c>.</summary>
+    public int Lot { get; }
+
+    /// <summary>How many packages leave that slot.</summary>
+    public int Packages { get; }
+
+    /// <summary>
+    /// The stack of the remainder this write puts in the bag, or <c>-1</c>. With a
+    /// <see cref="Lot"/> as well, one write does both: the stack replaces all the
+    /// slot held.
+    /// </summary>
+    public int Stack { get; }
+}
+
+/// <summary>What is out of the bag at one moment of a cut.</summary>
+public readonly struct CutGoods
+{
+    internal CutGoods(IReadOnlyList<int> wholeLots, bool portion, IReadOnlyList<int> stacks)
+    {
+        WholeLots = wholeLots;
+        Portion = portion;
+        Stacks = stacks;
+    }
+
+    /// <summary>The lots whose whole packages are out.</summary>
+    public IReadOnlyList<int> WholeLots { get; }
+
+    /// <summary>Whether the portion is out.</summary>
+    public bool Portion { get; }
+
+    /// <summary>The stacks of the remainder that are not back in the bag.</summary>
+    public IReadOnlyList<int> Stacks { get; }
 }
 
 /// <summary>One stack: this many packages of this size.</summary>

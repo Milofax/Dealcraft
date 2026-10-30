@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Dealcraft.Core;
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(Dealcraft.DealcraftMod), "Dealcraft", "1.5.0", "Milofax", null)]
+[assembly: MelonInfo(typeof(Dealcraft.DealcraftMod), "Dealcraft", "1.5.1", "Milofax", null)]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
 namespace Dealcraft;

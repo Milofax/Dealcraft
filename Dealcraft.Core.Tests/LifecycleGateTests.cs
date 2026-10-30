@@ -319,5 +319,6 @@ public class LifecycleGateTests
         Authority = ServerAuthority.Held,
         SaveLoaded = true,
         Saving = false,
+        AcceptPathGap = string.Empty,
     };
 }

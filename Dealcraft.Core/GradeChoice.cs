@@ -156,7 +156,8 @@ public static class GradeChoice
         Plan(request, lots, reach, mayCut: false, out fill);
 
     /// <summary>
-    /// The same, with leave to open one package that holds more than the order.
+    /// The same, with leave to open one package where the whole ones would
+    /// overshoot.
     /// </summary>
     /// <remarks>
     /// The flag belongs in the plan and not in the taking. The handover asks

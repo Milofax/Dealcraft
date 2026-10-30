@@ -8,6 +8,47 @@ Entries say what changed for a player. Where a fix came out of a real session,
 the figure that gave it away is quoted, because a claim with a number behind it
 can be checked and one without cannot.
 
+## [1.5.1] — 2026-10-30
+
+### Fixed
+
+- **An order no single package holds more than now goes out exact.** With *Cut
+  portions* ticked, six units against two jars sent both jars, ten units. It now
+  sends one whole jar and one unit cut out of the other, and the other four go
+  back in the bag. A cut that only lacks room waits; one that can never be made
+  sends the whole packages, overshooting, and the log says why. Exact delivery
+  earns no Generosity bonus.
+- **A cut with nowhere to put the rest now waits, as it was meant to.** The check
+  before a contract is claimed never saw the cut, so a full bag, or a second cut
+  straight after the first, sent whole packages instead. The deal now waits for
+  the next pass.
+- **The log counts the slots a cut really took.** It said "costing no slot" even
+  when one was taken.
+- **A handover that fails partway says what really happened.** Goods out of the
+  bag when a cut failed were not put back, though the log said they were. They
+  now are, and anything that no longer fits in your bag is named as lost.
+- **A deal waits for the customer's last message.** The reply buttons appear with
+  the first message of a request, so a deal could be scheduled while the customer
+  was still asking their last question. Dealcraft now waits until they have
+  finished, for a plain offer and after a counter-offer. A customer who keeps a
+  deal waiting for 30 seconds still gets it.
+- **A counter-offer can no longer leave a deal to expire.** Scheduling could reach
+  a customer in the moment their answer to a counter-offer was on its way, when
+  the game has no reply to give. The accept failed and that offer was not tried
+  again, so it stood until the customer gave up on it. Dealcraft now waits for the
+  answer, and a customer with no conversation, or whose answer never comes, is
+  served without a reply in the conversation.
+
+### Changed
+
+- **Nothing is accepted or countered while the game could not take it.** Before
+  it claims a deal, Dealcraft checks that the phone, the journal and the rest of
+  what an accepted deal needs exist, and every automatic pass waits out a load.
+  This guards against the null reference errors reported in
+  `CustomerSelector.Exit` and `Quest.SetupJournalEntry`. Those reports show
+  another mod in the same game and are not settled: a full `Latest.log` would
+  help, and Dealcraft cannot stop an accept that does not come from it.
+
 ## [1.5.0] — 2026-10-17
 
 ### Changed

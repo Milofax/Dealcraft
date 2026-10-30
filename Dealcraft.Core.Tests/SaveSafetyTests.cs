@@ -159,12 +159,15 @@ public class SaveSafetyTests
     /// anything else reached for on those managers — a save triggered, a slot
     /// written, a load forced — is a failure rather than a judgement call.
     ///
+    /// The load flag joined the two save flags so that a pass can tell a session
+    /// that is running from one being rebuilt; it is a reading like the others.
+    ///
     /// One file reads them, which the test below pins down, and in that file both
     /// are held in a local called <c>manager</c> — so every member the mod takes
     /// off either is a <c>manager.X</c> there, and those are what this collects.
     /// </summary>
     [Fact]
-    public void The_only_things_read_off_the_persistence_managers_are_two_flags()
+    public void The_only_things_read_off_the_persistence_managers_are_three_flags()
     {
         var read = new SortedSet<string>(StringComparer.Ordinal);
 
@@ -177,11 +180,11 @@ public class SaveSafetyTests
             }
         }
 
-        Assert.Equal(new[] { "IsGameLoaded", "IsSaving" }, read);
+        Assert.Equal(new[] { "IsGameLoaded", "IsLoading", "IsSaving" }, read);
     }
 
     /// <summary>
-    /// And they are read in one place, so the two flags above really are the
+    /// And they are read in one place, so the three flags above really are the
     /// whole of the mod's dealings with the save system rather than one file's.
     /// </summary>
     [Fact]

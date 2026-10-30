@@ -5,8 +5,9 @@ using Il2CppScheduleOne.Persistence;
 namespace Dealcraft;
 
 /// <summary>
-/// Reads two things off the game's persistence managers: whether a save is
-/// loaded, and whether one is being written right now.
+/// Reads three things off the game's persistence managers: whether a save is
+/// loaded, whether a load is under way, and whether a save is being written
+/// right now.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -64,6 +65,29 @@ internal sealed class SaveStateReader
         {
             Complain($"the game could not be asked whether a save is loaded: {error.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Whether the game is loading or leaving a session. Unreadable counts as
+    /// loading, for the same reason a failed reading counts as no save.
+    /// </summary>
+    public bool Loading()
+    {
+        try
+        {
+            if (!Singleton<LoadManager>.InstanceExists)
+            {
+                return true;
+            }
+
+            LoadManager manager = Singleton<LoadManager>.Instance;
+            return manager == null || manager.IsLoading;
+        }
+        catch (Exception error)
+        {
+            Complain($"the game could not be asked whether it is loading: {error.Message}");
+            return true;
         }
     }
 

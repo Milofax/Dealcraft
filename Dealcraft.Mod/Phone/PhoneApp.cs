@@ -308,11 +308,9 @@ internal sealed class PhoneApp
             yield break;
         }
 
-        // Said twice on purpose. TryClone restores the pointer on the line after
-        // the move that runs Awake, which is exact if Unity activates the object
-        // there and harmless if it defers it to the frame boundary — this is the
-        // line that covers the second case. Writing the pointer the vanilla app
-        // should have is idempotent.
+        // The net under ClonedAppStart: a copy whose Start threw never reached
+        // the wrap's postfix, and the pointer would be left at the copy. Writing
+        // the pointer the vanilla app should have is idempotent.
         RestoreAppSingleton(before.App);
 
         if (_clone == null)
@@ -441,9 +439,10 @@ internal sealed class PhoneApp
 
     /// <summary>
     /// Put the app type's singleton pointer back at the vanilla app. The copy's
-    /// <c>PlayerSingleton.Awake</c> claims it, and leaving it claimed would send
-    /// every <c>PlayerSingleton&lt;ProductManagerApp&gt;.Instance</c> read in the
-    /// game to Dealcraft's copy.
+    /// <c>PlayerSingleton.Awake</c> keeps the prior instance, so only
+    /// <see cref="ClonedAppStart"/> ever aims it elsewhere, and leaving it there
+    /// would send every <c>PlayerSingleton&lt;ProductManagerApp&gt;.Instance</c>
+    /// read in the game to Dealcraft's copy.
     /// </summary>
     private void RestoreAppSingleton(ProductManagerApp donor)
     {
@@ -462,11 +461,11 @@ internal sealed class PhoneApp
     /// leaving the vanilla app broken. Two conditions:
     /// <list type="bullet">
     /// <item>the app type's singleton pointer can be read <em>and</em> written —
-    /// without that, the copy's <c>PlayerSingleton.Awake</c> would leave the
-    /// vanilla Product Manager pointing at our clone. <see cref="Look"/> has
-    /// already read it, and <paramref name="donor"/> is what it holds; writing
-    /// that same value back is a no-op and the only way to find out whether the
-    /// pointer can be written before the copy's <c>Awake</c> makes it matter. A
+    /// without that, <see cref="ClonedAppStart"/> could aim it at our clone and
+    /// never put it back. <see cref="Look"/> has already read it, and
+    /// <paramref name="donor"/> is what it holds; writing that same value back is
+    /// a no-op and the only way to find out whether the pointer can be written
+    /// before the wrap makes it matter. A
     /// pointer that is merely <em>empty</em> never reaches this method: that is a
     /// scene still coming up, and it is waited for rather than refused.</item>
     /// <item>there is no <c>NetworkBehaviour</c> anywhere in the subtree. The
@@ -562,9 +561,9 @@ internal sealed class PhoneApp
             // exactly the length of that one call; see ClonedAppStart.
             ClonedAppStart.Expect(app, donor);
 
-            // Awake runs inside this move, and it repoints the app type's
-            // singleton at the copy. No game code runs between these two lines,
-            // so the vanilla pointer is back before anything can read it.
+            // Awake runs inside this move and leaves the app type's singleton
+            // alone, so the write below changes nothing. It stays as the
+            // statement of what the pointer must hold from here on.
             clone.transform.SetParent(parent, false);
             RestoreAppSingleton(donor);
 

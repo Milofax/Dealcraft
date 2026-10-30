@@ -569,17 +569,9 @@ public sealed class AutomationForm
                     ? new[] { new SettingChange(cutting.Key, cutting.Change.Next) }
                     : System.Array.Empty<SettingChange>()));
 
-            // The cost, under the answer rather than beside it, and it is a
-            // number rather than a warning because the player can act on a
-            // number. Cutting three units off a brick leaves seventeen, which
-            // comes back as three jars and two baggies — two stacks, and a stack
-            // is a place in the bag. The brick's own slot takes one of them as
-            // the brick leaves it, so one free slot covers the ordinary case and
-            // two covers every case.
-            //
-            // "brick" and "jar" are the game's own words for them rather than
-            // ones chosen here, because a note that renames what the player is
-            // looking at is a note they have to translate.
+            // The cost, under the answer rather than beside it. Cutting three
+            // units off a brick leaves seventeen, which comes back as seventeen
+            // baggies: fewest stacks wins, because a stack is a place in the bag.
             //
             // What it costs, and the cost is usually nothing. The remainder goes
             // onto a stack of the same packaging the player already carries, and

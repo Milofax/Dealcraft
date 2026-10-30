@@ -166,5 +166,6 @@ public class LifecycleQuietTests
         Authority = ServerAuthority.Held,
         SaveLoaded = true,
         Saving = false,
+        AcceptPathGap = string.Empty,
     };
 }

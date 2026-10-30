@@ -83,8 +83,8 @@ public sealed class AdvisorSettings
     public bool MayUseAHigherGrade { get; set; } = true;
 
     /// <summary>
-    /// Whether a handover may cut a smaller portion out of a bigger package
-    /// when the contract asks for less than one holds. Off.
+    /// Whether a handover may open a package when whole ones would overshoot, so
+    /// the contract gets exactly what it asks for. Off.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -99,9 +99,8 @@ public sealed class AdvisorSettings
     /// Off by default for that reason, and never quiet: what was cut is said in
     /// the log line for the handover that needed it, and so is a cut that was
     /// worth making and did not happen, with which of its reasons it was. The
-    /// remainder comes back mixed, biggest packaging first, the way the game's own
-    /// packaging station would give it back — three units off a brick leaves three
-    /// jars and two baggies. A stack is a place in the bag, but the
+    /// remainder comes back as one stack wherever one will do — three units off a
+    /// brick leaves seventeen baggies. A stack is a place in the bag, but the
     /// remainder goes onto a stack of the same packaging the player already
     /// carries and only wants a slot of its own when there is none. Without the
     /// room the deal is

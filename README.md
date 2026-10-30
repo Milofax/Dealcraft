@@ -1,11 +1,51 @@
 # Dealcraft
 
-A Schedule I mod that negotiates your customer deals for you, schedules them
-into the hours you actually play, and fills in your handovers.
+**You run a drug empire. Why are you still answering the phone?**
+
+Every evening is the same. The phone buzzes. Someone wants three baggies at a
+price that insults you both. You guess a counter-offer, they turn it down, you
+pick a time, you cross town, you drag goods into a window. Meanwhile four more
+customers have texted.
+
+**Dealcraft takes the phone.** It haggles every customer up to the most they will
+really pay, books the deal into the hours you actually play, and packs the
+handover for you. You keep the cash, your best stock and your evening.
+
+In one test session, five automatic handovers took a player from **$21 to
+$1,309**, and not one handover screen was filled in by hand.
+
+## What you get
+
+- **The top price, every time.** No more guessing. Dealcraft reads the game's own
+  odds for each customer and finds the highest price that still lands, at the
+  risk you choose.
+- **Shop prices that earn their keep.** It works out the listed price that makes
+  the most money across all your customers. Tick one box and it keeps them there.
+- **Deals on your schedule.** Tick the hours you are around. Accepted deals land
+  in them, not in the middle of your night.
+- **Handovers that do themselves.** Talk to the customer and the goods are
+  packed. Playing solo? Switch it to *from anywhere* and finish deals from across
+  the map while the money lands in your pocket.
+- **Your Heavenly stays yours.** A customer who ordered Standard gets the cheapest
+  grade that meets the contract, not the good stuff you were saving.
+- **Six means six.** Someone orders six and you carry jars? Dealcraft cuts the rest
+  out of a jar on the spot and sends exactly six. The game only lets you do that
+  at a packaging station.
+- **Bring your friends.** Only the host needs the mod, and everyone at the table
+  gets the negotiated prices and scheduled deals. Anyone who installs it too gets
+  their own handovers done, and the money goes to whoever delivered.
+
+One page of switches on your in-game phone. Everything is off until you turn it
+on. Delete the two files and your save still loads in the plain game.
+
+And if you want to know what a handover is really worth, the numbers are
+[below](#what-a-handover-is-actually-worth): measured in play, and they will
+change what you put on your big contracts.
 
 Built for **Schedule I 0.4.7f12** (Steam main branch, IL2CPP) with
 **MelonLoader 0.7.3**. Two files, no custom assets, nothing written into your
-save.
+save. Multiplayer is built in but has not been played in a real session yet; see
+[what has been tried](#what-has-been-tried-and-what-has-not).
 
 ---
 
@@ -22,17 +62,14 @@ Short answer: **one person, and it does not have to be you.**
 Nobody is required to install anything. Unmodified vanilla clients can always
 join a host running Dealcraft, and that is not going to change.
 
-Why it is split that way: negotiating, scheduling and prices act on **one**
-shared customer roster and **one** shared contract list, so they run on the host
-only — six installs must not answer one offer six times. A handover is one
-player's goods leaving one player's pockets, so it belongs to whoever is
-standing there, and that player's own copy does it.
-
 ## What it does not do
 
-- It does **not** walk to customers. You still go there.
-- It does **not** carry goods for you. What is not in your pockets cannot be
-  handed over.
+- It does **not** make goods appear. What is not in your pockets cannot be handed
+  over.
+- It does **not** walk for you unless you ask. By default a handover waits until
+  you talk to the customer. *From anywhere* is the switch that drops the walk, and
+  in a session it should stay off; see
+  [Multiplayer, in more detail](#multiplayer-in-more-detail).
 - It does **not** touch your save. Remove the two files and the save loads in a
   vanilla game, unchanged.
 - It does **not** show you numbers in its app. No customer list, no product
@@ -336,9 +373,11 @@ stock for you.
   handovers, all through the game's own server calls. An evening offer goes into
   tonight's Night while two hours of it are left. **Sleep skips Late Night**:
   sleeping goes straight from the evening to 07:00, so a deal in Late Night
-  expires while you sleep. If you sleep at night, leave Late Night unticked
-- If you tick it, cuts a smaller portion out of a bigger package when a contract
-  asks for less than one holds — see below, because it is the one thing here the
+  expires while you sleep. If you sleep at night, leave Late Night unticked.
+  A deal waits for the customer's last message before it is answered, and
+  nothing is accepted while the game is loading or its phone is not there
+- If you tick it, opens a package when whole ones would overshoot, so a contract
+  gets exactly what it asks for — see below, because it is the one thing here the
   game does not let you do by hand
 - Keeps a ledger of every handover it sees, including ones you did by hand, so
   the numbers above can be checked rather than believed
@@ -356,15 +395,25 @@ Off by default, and the one exception to "the mod does what you could do
 yourself": the game only repackages at a packaging station. With *Cut portions
 from bigger packages* ticked in the handover block, a contract for six units
 out of a bag holding only bricks opens one brick and sends exactly six, instead
-of all twenty.
+of all twenty. Out of two jars it sends one whole jar and one unit cut from the
+other, instead of both jars.
 
 - **Only when the ordinary way would overshoot.** If your baggies cover the
   order, the baggies go and nothing is cut.
+- **One package is opened, never more.** One that holds more than the order is
+  opened alone. Where none does, whole packages cover as much of the order as
+  they can and one more is opened for the rest. A handover still holds four
+  stacks and the cut is one of them; where that leaves no room for it, the whole
+  packages go and the order overshoots.
+- **Exact means no Generosity bonus.** The bonus pays for units beyond the
+  order, so the $40 that ten units earn against an order of six is gone with the
+  four extra units, which stay yours.
 - **The rest goes back as one stack**, onto a stack of the same product and
   grade you already carry whenever it fits. A slot holds twenty packages, so in
   practice it always fits: a cut only happens when your baggies are short of the
   order, which is exactly when their stack has room for what is left of the
-  brick. Two places per product — bricks and baggies — is the steady state.
+  brick. Two places per product — bricks and baggies — is the steady state. A
+  stack the same handover draws whole packages from is not used for it.
 - **The first cut of a product may need a free slot**, when you carry no baggies
   of it yet. Without one, the deal waits rather than going out as a whole
   brick, and is picked up on the next pass once there is room. No contract is

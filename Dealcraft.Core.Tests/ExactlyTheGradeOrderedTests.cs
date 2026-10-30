@@ -123,10 +123,10 @@ public class ExactlyTheGradeOrderedTests
     }
 
     /// <summary>
-    /// Neither answer changes what happens to package size. An order of six
-    /// against two jars of five can only be met with ten, and refusing that to
-    /// save four units would lose the deal — <c>PackagePlan</c> argues it out in
-    /// as many words. Exactness is about the grade alone.
+    /// Neither answer changes what happens to package size. With cutting off, an
+    /// order of six against two jars of five can only be met with ten, and refusing
+    /// that to save four units would lose the deal — <c>PackagePlan</c> argues it
+    /// out in as many words. Exactness is about the grade alone.
     /// </summary>
     [Theory]
     [InlineData(GradeReach.Exactly)]

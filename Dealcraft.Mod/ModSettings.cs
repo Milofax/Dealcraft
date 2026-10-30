@@ -86,27 +86,29 @@ internal sealed class ModSettings
                 + "list out of his own pockets and a guest walking to the customer finds the deal "
                 + "gone. Read with AutoHandover: this says where, that says whether.");
         _cutPortions = category.CreateEntry("CutPortions", Defaults.CutPortions,
-            description: "Cut a smaller portion out of a bigger package when a contract asks for "
-                + "less than one holds. The game itself only repackages at a packaging station, so "
-                + "this is the one thing here it does not let you do by hand. Off by default. "
-                + "The portion goes out in the largest packaging that divides the order, and the "
-                + "remainder comes back mixed, biggest first, the way the game's own packaging "
-                + "station would give it to you: three units off a brick leaves three jars and two "
-                + "baggies. A stack is a place in the bag, and the opened package's own slot takes "
-                + "the first stack when it held nothing else. Putting it away usually costs no "
-                + "slot at all: it goes onto a stack of the same packaging you already carry, and "
-                + "only wants a slot of its own when there is none - so the first cut may need one "
-                + "and the cuts after it stack onto what that one left behind. Where there is "
-                + "genuinely nowhere, the deal is left standing rather than served out of whole "
-                + "packages, exactly as an empty inventory leaves it: the contract is not claimed, "
-                + "so the next sweep tries it again once you have made space. The log says what it "
-                + "is waiting for.");
+            description: "Let a handover open one package where whole packages would overshoot, so "
+                + "the contract gets exactly what it asks for. A package holding more than the "
+                + "order is opened alone. Where none does, whole packages cover most of the order "
+                + "and one more is opened for the rest: six from two jars is one whole jar and one "
+                + "unit cut from the other. The game itself only repackages at a packaging station, "
+                + "so this is the one thing here it does not let you do by hand. Off by default. "
+                + "The rest comes back in the fewest stacks it can: onto a stack of the same "
+                + "packaging you already carry if it fits, then a free slot, then the opened "
+                + "package's own slot if nothing stays in it - so the first cut may need a slot and "
+                + "the cuts after it stack onto what that one left behind. With genuinely nowhere "
+                + "to put it, the deal is left standing rather than served out of whole packages, "
+                + "exactly as an empty inventory leaves it: the contract is not claimed, so the next "
+                + "sweep tries it again once you have made space. A cut that can never be made - "
+                + "no packaging takes the portion as one stack, or the handover's four stacks are "
+                + "full - sends the whole packages and overshoots. The log says which. An exact "
+                + "delivery earns no Generosity bonus.");
         _mayUseAHigherGrade = category.CreateEntry("MayUseAHigherGrade", Defaults.MayUseAHigherGrade,
             description: "Let an automated handover go out in a better grade than the contract asked "
                 + "for, when nothing of the grade ordered covers the order. Off by default: a jar of "
                 + "Heavenly going out on a contract that asked for Poor is the owner's best product "
-                + "spent at a Poor price. It says nothing about how much leaves the bag — packages "
-                + "cannot be split, so a delivery may still overshoot in units either way.");
+                + "spent at a Poor price. It says nothing about how much leaves the bag — unless "
+                + "CutPortions cuts one, packages stay whole, so a delivery may still overshoot in "
+                + "units either way.");
 
         // The entry name is written here as a literal rather than as
         // ChanceFloor.Key, because it is the preferences file's contract and the

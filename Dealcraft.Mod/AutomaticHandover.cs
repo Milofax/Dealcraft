@@ -569,7 +569,11 @@ internal sealed class AutomaticHandover
                     _settings().CutPortions,
                     out int unitsTaken,
                     out string cut,
-                    out string whyNotCut);
+                    out string whyNotCut,
+
+                    // Filled only if the taking throws partway, so that what has
+                    // left the bag by then is among what goes back below.
+                    items);
 
                 for (int i = 0; i < taken.Count; i++)
                 {
@@ -591,12 +595,12 @@ internal sealed class AutomaticHandover
 
                 if (cut is not null)
                 {
-                    // The order met exactly, out of a package that held more. Said
+                    // The order met exactly, with one package opened for it. Said
                     // with every figure in it, because how many places in the bag a
                     // cut costs is the thing the owner is counting and no reckoning
                     // about it should have to guess at the numbers.
-                    _log($"[{Named(name)}] cut {unitsTaken} units of "
-                        + $"{plan.Request.ProductId}: {cut}.");
+                    _log($"[{Named(name)}] {unitsTaken} units of "
+                        + $"{plan.Request.ProductId} exactly, cut: {cut}.");
                 }
                 else if (unitsTaken > plan.ChosenUnits)
                 {
@@ -605,11 +609,12 @@ internal sealed class AutomaticHandover
                     // what the pockets forced, not a choice. Said out loud
                     // because the player can carry something else next time.
                     //
-                    // With cutting on, the plan has already refused a cut it could
-                    // not carry out, before claiming anything - so reaching here
-                    // with a reason means the bag changed between the plan and the
-                    // taking. Said with the reason rather than guessed at, because
-                    // that is a different event from "nothing smaller carried".
+                    // With cutting on, the plan has already held back a cut that
+                    // could still happen, before claiming anything. So a reason here
+                    // is a cut that never can, or a bag that changed between the plan
+                    // and the taking. Said with the reason rather than guessed at,
+                    // because that is a different event from "nothing smaller
+                    // carried".
                     _log($"[{Named(name)}] {unitsTaken} units for a contract of {plan.ChosenUnits}: "
                         + (whyNotCut is null
                             ? "nothing smaller in your bag."
@@ -649,10 +654,14 @@ internal sealed class AutomaticHandover
         {
             // The goods left the host's inventory before the call. Whatever
             // went wrong, they go back rather than vanish.
-            HandoverGoods.Return(items);
+            string gone = HandoverGoods.Return(items);
+            string putBack = gone is null
+                ? "the goods were put back"
+                : $"the goods were put back except {gone}, which did not fit in your bag and are lost";
+
             _warn($"Dealcraft could not complete the handover to {Named(name)} ({error.Message}). "
-                + "The goods were put back, and this contract is now left to you: "
-                + "the automation does not retry a handover that went wrong.");
+                + $"{char.ToUpperInvariant(putBack[0])}{putBack.Substring(1)}, and this contract is "
+                + "now left to you: the automation does not retry a handover that went wrong.");
 
             // The most expensive nothing this mod can produce: everything was
             // in order, the goods left the bag, and the game refused anyway.
@@ -662,7 +671,7 @@ internal sealed class AutomaticHandover
                 key,
                 contract,
                 $"everything was in order and the handover itself failed ({error.Message}); "
-                    + "the goods were put back and the contract is left to the player");
+                    + $"{putBack} and the contract is left to the player");
         }
         finally
         {
@@ -812,7 +821,7 @@ internal sealed class AutomaticHandover
             // contract is not served the instant it appears; there are hours in
             // the window.
             // Only a cut that could still happen is waited for. One that never
-            // can - no packaging takes the order in a single stack - is not a
+            // can - no packaging takes the portion in a single stack - is not a
             // reason to hold the deal until it expires; the whole packages go,
             // exactly as they would with cutting off, and the taking says so.
             if (fill.Cuts
@@ -825,8 +834,8 @@ internal sealed class AutomaticHandover
                 && worthWaiting)
             {
                 return DeliveryPlan.Nothing(
-                    $"{plan.ChosenUnits} of {request.ProductId} would have to be cut out of a "
-                        + $"bigger package and cannot be yet: {whyNot}");
+                    $"{fill.Portion} of the {plan.ChosenUnits} {request.ProductId} would have to "
+                        + $"be cut out of a package and cannot be yet: {whyNot}");
             }
 
             plans.Add(plan);

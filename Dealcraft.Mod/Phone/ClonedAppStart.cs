@@ -15,13 +15,13 @@ namespace Dealcraft.Phone;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What this is for.</b> The copy's <c>PlayerSingleton.Awake</c> claims the
-/// singleton and <see cref="PhoneApp"/> puts the vanilla app back on the next
-/// line, so by the time the copy's <c>Start</c> runs — a frame later — the
-/// pointer is the vanilla app's again. Anything in that <c>Start</c> that
-/// reached for the singleton instead of <c>this</c> would therefore write into
-/// the vanilla Product Manager, and this makes the two the same object for the
-/// length of that one call.
+/// <b>What this is for.</b> The copy's <c>PlayerSingleton.Awake</c> finds the
+/// singleton taken and keeps the vanilla app in it, so when the copy's
+/// <c>Start</c> runs — a frame later — the pointer is the vanilla app's. Anything
+/// in that <c>Start</c> that reached for the singleton instead of <c>this</c>
+/// would therefore write into the vanilla Product Manager, and this makes the two
+/// the same object for the length of that one call. This wrap is the only time
+/// the copy ever holds the pointer.
 /// </para>
 /// <para>
 /// <b>It was built against a duplication that turned out not to be one.</b> The
@@ -55,8 +55,7 @@ namespace Dealcraft.Phone;
 /// <b>If the original throws</b> the postfix does not run, and the pointer would
 /// be left at the copy. <see cref="PhoneApp"/> writes the vanilla app back into
 /// it two frames after the copy is made, unconditionally, which is the net under
-/// that case — it was already there, said twice on purpose, for the frame
-/// boundary.
+/// that case.
 /// </para>
 /// </remarks>
 internal static class ClonedAppStart

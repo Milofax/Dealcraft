@@ -65,9 +65,9 @@ public enum PackageFillOutcome
 /// </para>
 /// <para>
 /// It says nothing about how much leaves the bag. Packages are indivisible
-/// (<see cref="PackageLot"/>), and an order of six against two jars of five can
-/// only be met with ten — so a delivery is exact in its grade and may still
-/// overshoot in units, whichever answer is set.
+/// (<see cref="PackageLot"/>), and unless the player allows cutting an order of
+/// six against two jars of five can only be met with ten — so a delivery is exact
+/// in its grade and may still overshoot in units, whichever answer is set.
 /// </para>
 /// </remarks>
 public enum GradeReach
@@ -115,11 +115,12 @@ public enum GradeReach
 /// <item>fewest packages, on a tie.</item>
 /// </list>
 /// <para>
-/// <b>Overshoot is never a reason to refuse.</b> An order of six against two
-/// jars of five can only be met with ten: one jar is short and nothing between
-/// them exists. Losing the deal to save four units is much the larger loss, and
-/// the player is standing there and would hand over the two jars themselves. The
-/// contract row says what the packaging forced; nothing blocks it.
+/// <b>Overshoot is never a reason to refuse.</b> As the game packs, an order of
+/// six against two jars of five can only be met with ten: one jar is short and
+/// nothing between them exists. Losing the deal to save four units is much the
+/// larger loss, and the player is standing there and would hand over the two jars
+/// themselves. The contract row says what the packaging forced; nothing blocks
+/// it. Cutting, where the player allows it, meets that order with exactly six.
 /// </para>
 /// </remarks>
 public static class PackagePlan
@@ -156,8 +157,8 @@ public static class PackagePlan
         Fill(lots, order, mayCut: false);
 
     /// <summary>
-    /// The same, with leave to open one package that holds more than the order
-    /// and take a portion out of it.
+    /// The same, with leave to open one package and take a portion out of it, so
+    /// that an order the whole packages would overshoot goes out exactly.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -178,12 +179,19 @@ public static class PackagePlan
     /// outright if either side will not divide into those.
     /// </para>
     /// <para>
+    /// <b>The order is never rounded up to the packaging.</b> A package holding
+    /// more than the order is opened alone, as it always was. Where none does, as
+    /// with six against two jars, whole packages cover the largest part they can
+    /// and one more is opened for what is left: one jar, and one unit out of the
+    /// other.
+    /// </para>
+    /// <para>
     /// <b>This says the cut is worth making, not that it will happen.</b> The
     /// remainder needs somewhere to go, and whether the bag has it is a fact
-    /// about the inventory rather than about the arithmetic. Where it does not,
-    /// the handover goes out as whole packages — overshooting, exactly as it
-    /// would with this switched off — and says so. Nothing is lost and no
-    /// contract is given up for it.
+    /// about the inventory rather than about the arithmetic. Where it could still
+    /// find room, the deal waits for the next pass, unclaimed. Where the cut can
+    /// never be made, the handover goes out as whole packages — overshooting,
+    /// exactly as it would with this switched off — and says so.
     /// </para>
     /// </remarks>
     public static PackageFill Fill(IReadOnlyList<PackageLot> lots, int order, bool mayCut)
@@ -262,10 +270,10 @@ public static class PackagePlan
         // complaining about — "ich komme gar nicht mehr mit den Tüten hinterher"
         // — and it is the whole of what cutting is for.
         //
-        // Shortage was in this condition too, and it was unreachable: a package
-        // big enough to be worth opening covers the order on its own, so the
-        // search above has already found a fill. Cutting can never rescue a bag
-        // that cannot cover the order, and a branch that reads as though it
+        // Shortage was in this condition too, and it was unreachable: a cut sends
+        // less than the packages it draws on hold, so those same packages whole
+        // are a fill the search above has already found. Cutting can never rescue
+        // a bag that cannot cover the order, and a branch that reads as though it
         // might is a claim about this code that is not true.
         if (mayCut && found && bestUnits > order)
         {
@@ -275,7 +283,7 @@ public static class PackagePlan
             // the point of cutting and is the only case where the units taken
             // are not a whole number of packages.
             //
-            // The same call the taking makes, so the two cannot pick different
+            // The taking asks this same method, so the two cannot pick different
             // packages out of the same bag.
             int at = PortionCut.Opened(lots, order);
 
@@ -285,7 +293,15 @@ public static class PackagePlan
                 cut[at] = 1;
 
                 return new PackageFill(
-                    PackageFillOutcome.Covered, cut, order, 1, carrying, cuts: true);
+                    PackageFillOutcome.Covered, cut, order, 1, carrying, at, order);
+            }
+
+            // No package holds more than the order. Where this finds nothing the
+            // whole packages below go, overshooting, as they would with cutting
+            // off.
+            if (WholeAndPortion(lots, order, carrying, out PackageFill split))
+            {
+                return split;
             }
         }
 
@@ -300,6 +316,115 @@ public static class PackagePlan
             carrying < order ? PackageFillOutcome.NotEnoughCarried : PackageFillOutcome.NeedsMorePackages,
             carrying,
             lots.Count);
+    }
+
+    /// <summary>
+    /// Whole packages for the largest part of the order they can cover without
+    /// passing it, and one more package opened for what is left. False where no
+    /// such pair exists.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The order of preference: the largest whole part, so the least is cut; then
+    /// the smallest package that holds what is left, so a brick is left alone
+    /// while a jar will do; then the lot it leaves the fewest in, because a lot
+    /// the cut empties gives the remainder a slot; then fewest packages.
+    /// </para>
+    /// <para>
+    /// <b>The portion is a position of its own</b>, even out of a lot the whole
+    /// part also draws on: it crosses in another packaging, so it is another stack.
+    /// So the whole part may use one position fewer than
+    /// <see cref="MostPositions"/>, and that bound is why the largest whole part
+    /// is not always the one taken.
+    /// </para>
+    /// </remarks>
+    private static bool WholeAndPortion(
+        IReadOnlyList<PackageLot> lots, int order, int carrying, out PackageFill fill)
+    {
+        var chosen = new int[lots.Count];
+        var best = new int[lots.Count];
+        int bestUnits = 0;
+        int bestPackages = 0;
+        int bestOpened = -1;
+
+        void Search(int at, int units, int packages, int positions)
+        {
+            if (at < lots.Count)
+            {
+                Search(at + 1, units, packages, positions);
+
+                if (positions >= MostPositions - 1)
+                {
+                    return;
+                }
+
+                int size = lots[at].UnitsPerPackage;
+
+                for (int take = 1; take <= lots[at].Packages && units + (take * size) < order; take++)
+                {
+                    chosen[at] = take;
+                    Search(at + 1, units + (take * size), packages + take, positions + 1);
+                }
+
+                chosen[at] = 0;
+                return;
+            }
+
+            for (int lot = 0; lot < lots.Count; lot++)
+            {
+                if (lots[lot].Packages > chosen[lot]
+                    && lots[lot].UnitsPerPackage > order - units
+                    && Better(lot, units, packages))
+                {
+                    bestUnits = units;
+                    bestPackages = packages;
+                    bestOpened = lot;
+                    Array.Copy(chosen, best, chosen.Length);
+                }
+            }
+        }
+
+        bool Better(int lot, int units, int packages)
+        {
+            if (bestOpened < 0 || units != bestUnits)
+            {
+                return bestOpened < 0 || units > bestUnits;
+            }
+
+            int size = lots[lot].UnitsPerPackage;
+            int bestSize = lots[bestOpened].UnitsPerPackage;
+
+            if (size != bestSize)
+            {
+                return size < bestSize;
+            }
+
+            int left = lots[lot].Packages - chosen[lot];
+            int bestLeft = lots[bestOpened].Packages - best[bestOpened];
+
+            return left != bestLeft ? left < bestLeft : packages < bestPackages;
+        }
+
+        Search(0, 0, 0, 0);
+
+        if (bestOpened < 0)
+        {
+            fill = default;
+            return false;
+        }
+
+        best[bestOpened]++;
+
+        fill = new PackageFill(
+            PackageFillOutcome.Covered,
+            best,
+            order,
+            bestPackages + 1,
+            carrying,
+            bestOpened,
+            order - bestUnits);
+
+        return true;
     }
 
     /// <summary>
@@ -355,7 +480,8 @@ public static class PackagePlan
         Choose(lots, requestedQuality, order, reach, mayCut: false);
 
     /// <summary>
-    /// The same, with leave to open one package that holds more than the order.
+    /// The same, with leave to open one package where the whole ones would
+    /// overshoot.
     /// </summary>
     public static GradeFill Choose(
         IReadOnlyList<CarriedLot> lots,
@@ -602,7 +728,16 @@ public static class PackagePlan
             taken[where[at]] = fill.From(at);
         }
 
-        return new PackageFill(fill.Outcome, taken, fill.Units, fill.Packages, fill.Carrying);
+        // The cut comes across too, moved into the same index space: this is the
+        // fill the handover reads before it claims a contract.
+        return new PackageFill(
+            fill.Outcome,
+            taken,
+            fill.Units,
+            fill.Packages,
+            fill.Carrying,
+            fill.Cuts ? where[fill.Opened] : -1,
+            fill.Portion);
     }
 
     /// <summary>
@@ -701,14 +836,16 @@ public readonly struct PackageFill
         int units,
         int packages,
         int carrying,
-        bool cuts = false)
+        int opened = -1,
+        int portion = 0)
     {
         Outcome = outcome;
         this.taken = taken;
         Units = units;
         Packages = packages;
         Carrying = carrying;
-        Cuts = cuts;
+        Opened = opened;
+        Portion = portion;
     }
 
     public PackageFillOutcome Outcome { get; }
@@ -729,27 +866,49 @@ public readonly struct PackageFill
     /// Whether this answer opens a package rather than taking whole ones.
     /// </summary>
     /// <remarks>
-    /// The one case where <see cref="From"/> does not mean "this many whole
-    /// packages": the single package it names is opened, the order is met
-    /// exactly, and the remainder goes back into the bag. Said here rather than
-    /// re-derived, so whoever acts on the fill can tell the two apart — a
-    /// handover that overshot because packages cannot be split and a handover
-    /// that came to the order exactly are different things to report.
+    /// One package of <see cref="Opened"/> is opened, <see cref="Portion"/> units
+    /// of it cross with any whole packages, the order is met exactly, and the
+    /// remainder goes back into the bag. Said here rather than re-derived, so
+    /// whoever acts on the fill can tell the two apart — a handover that overshot
+    /// because packages cannot be split and a handover that came to the order
+    /// exactly are different things to report.
     /// </remarks>
-    public bool Cuts { get; }
+    public bool Cuts => Portion > 0;
 
     /// <summary>
-    /// How many packages to take from that lot, by the lot's position in the
-    /// list handed to <see cref="PackagePlan.Fill"/>.
+    /// The lot the opened package comes out of, or <c>-1</c> when none is opened.
     /// </summary>
+    public int Opened { get; }
+
+    /// <summary>Units cut out of the opened package. Zero when none is.</summary>
+    public int Portion { get; }
+
+    /// <summary>
+    /// How many packages leave that lot, by the lot's position in the list handed
+    /// to <see cref="PackagePlan.Fill"/>, the opened one included.
+    /// </summary>
+    /// <remarks>
+    /// One figure, because it is one write. Two jars in one slot can be a whole
+    /// jar and an opened one, and that slot goes down by two at once: writing it
+    /// once for each would start the second write from a count that may not have
+    /// caught up with the first.
+    /// </remarks>
     public int From(int lot) => lot >= 0 && lot < taken.Length ? taken[lot] : 0;
+
+    /// <summary>
+    /// How many of <see cref="From"/> cross whole: all of them, less the opened
+    /// one.
+    /// </summary>
+    public int Whole(int lot) => Cuts && lot == Opened ? From(lot) - 1 : From(lot);
 
     /// <summary>How many lots this answer covers.</summary>
     public int Lots => taken.Length;
 
     /// <summary>
     /// How many of the handover screen's positions this fill needs: one per lot
-    /// it draws anything from, however many packages that is.
+    /// it draws anything from, however many packages that is, and one more where
+    /// the opened lot also sends whole packages, because the portion is another
+    /// stack.
     /// </summary>
     /// <remarks>
     /// The figure that is actually bounded, and the one the old code did not
@@ -772,7 +931,7 @@ public readonly struct PackageFill
                 }
             }
 
-            return used;
+            return Cuts && Whole(Opened) > 0 ? used + 1 : used;
         }
     }
 

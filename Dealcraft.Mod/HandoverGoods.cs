@@ -155,11 +155,11 @@ internal static class HandoverGoods
     /// </para>
     /// </remarks>
     /// <param name="mayCut">
-    /// Leave to open one package that holds more than the order and send a
-    /// portion out of it — <b>the one thing here the game does not let a player
-    /// do</b>, off by default, and tried only once packing as the game allows has
-    /// already overshot. A bag that covers the order without overshooting is
-    /// packed exactly as it would be with this false.
+    /// Leave to open one package and send a portion out of it, beside any whole
+    /// packages the order also takes — <b>the one thing here the game does not let
+    /// a player do</b>, off by default, and tried only once packing as the game
+    /// allows has already overshot. A bag that covers the order without
+    /// overshooting is packed exactly as it would be with this false.
     /// </param>
     /// <param name="unitsTaken">
     /// What actually left the bag. It is not the order: packages cannot be split
@@ -181,6 +181,10 @@ internal static class HandoverGoods
     /// remainder no packaging can make is not. Guessing at which would be the mod
     /// telling the player something it does not know.
     /// </param>
+    /// <param name="handBack">
+    /// Where the goods go if this throws partway: everything already out of the
+    /// bag is added to it, so the caller's <see cref="Return"/> can put it back.
+    /// </param>
     public static Il2CppSystem.Collections.Generic.List<ItemInstance> Take(
         string productId,
         int quality,
@@ -188,7 +192,8 @@ internal static class HandoverGoods
         bool mayCut,
         out int unitsTaken,
         out string cut,
-        out string whyNotCut)
+        out string whyNotCut,
+        Il2CppSystem.Collections.Generic.List<ItemInstance> handBack)
     {
         var taken = new Il2CppSystem.Collections.Generic.List<ItemInstance>();
         unitsTaken = 0;
@@ -200,12 +205,13 @@ internal static class HandoverGoods
         PackageFill fill = PackagePlan.Fill(lots, units);
 
         // The same condition the plan used, and only overshoot, because only
-        // overshoot can reach here: a package worth opening covers the order on
-        // its own, so a bag the ordinary fill cannot cover holds nothing to cut.
+        // overshoot can reach here: a cut draws on packages that would cover the
+        // order whole, so a bag the ordinary fill cannot cover holds nothing to
+        // cut.
         if (mayCut && fill.Covers && fill.Units > units)
         {
             Il2CppSystem.Collections.Generic.List<ItemInstance> portion =
-                Cut(candidates, lots, units, out unitsTaken, out cut, out whyNotCut);
+                Cut(candidates, lots, units, out unitsTaken, out cut, out whyNotCut, handBack);
 
             if (portion.Count > 0)
             {
@@ -227,10 +233,21 @@ internal static class HandoverGoods
             return taken;
         }
 
+        // A copy leaves the original free to be reduced by the same amount, which
+        // is what dragging part of a stack into the handover screen does. All of
+        // them first, so that a failure here has moved nothing.
+        var copies = new ItemInstance[candidates.Count];
+
+        for (int at = 0; at < candidates.Count; at++)
+        {
+            copies[at] = fill.From(at) > 0 ? candidates[at].Product.GetCopy(fill.From(at)) : null;
+        }
+
         for (int at = 0; at < candidates.Count; at++)
         {
             int items = fill.From(at);
-            if (items <= 0)
+            ItemInstance copy = copies[at];
+            if (copy is null)
             {
                 continue;
             }
@@ -238,19 +255,29 @@ internal static class HandoverGoods
             CarriedProduct carried = candidates[at];
             ProductItemInstance product = carried.Product;
 
-            // A copy leaves the original free to be reduced by the same amount,
-            // which is what dragging part of a stack into the handover screen
-            // does. The reduction goes through the slot rather than the item:
-            // read, that is the branch that tells the slot's
-            // owner anything changed, and the same method clears the slot by
-            // itself when the count reaches zero.
-            ItemInstance copy = product.GetCopy(items);
-            if (copy is null)
+            // The reduction goes through the slot rather than the item, because
+            // the slot clears itself when the count reaches zero.
+            int held = carried.Slot.Quantity;
+
+            try
             {
-                continue;
+                carried.Slot.ChangeQuantity(-items, _internal: false);
+            }
+            catch
+            {
+                if (carried.Slot.Quantity != held)
+                {
+                    taken.Add(copy);
+                }
+
+                for (int i = 0; i < taken.Count; i++)
+                {
+                    handBack.Add(taken[i]);
+                }
+
+                throw;
             }
 
-            carried.Slot.ChangeQuantity(-items, _internal: false);
             taken.Add(copy);
             unitsTaken += items * PerPackage(product);
         }
@@ -259,27 +286,25 @@ internal static class HandoverGoods
     }
 
     /// <summary>
-    /// Cut <paramref name="units"/> out of one package that holds more, and put
-    /// the remainder back in the bag.
+    /// Meet <paramref name="units"/> exactly: the whole packages the plan names,
+    /// a portion out of one more, and the remainder back in the bag.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// One package, not several: the point is a contract that asks for less than
-    /// a package holds, and cutting two would be inventing a second thing the
-    /// game does not do. The smallest package that holds more than the order is
-    /// the one opened, so a brick is left alone while a jar will do — and the
-    /// choice is <see cref="PortionCut.Opened"/>, the same call the plan made, so
-    /// the two cannot pick different packages out of the same bag.
+    /// One package opened, not several: cutting two would be inventing a second
+    /// thing the game does not do. Which one, and which whole packages go beside
+    /// it, is <see cref="PackagePlan.Fill(IReadOnlyList{PackageLot}, int, bool)"/>,
+    /// the same call the plan made, so the two cannot pick different packages out
+    /// of the same bag.
     /// </para>
     /// <para>
-    /// <b>Nothing is created and nothing is lost.</b> One package leaves the
-    /// slot, what the contract needs goes across in the smallest packaging the
-    /// product allows, and the remainder goes back in the same packaging. Where
-    /// the remainder goes is the part that has to be right: a slot holding that
-    /// one package empties itself as it leaves and takes the remainder back,
-    /// while a slot holding several keeps them and the remainder needs an empty
-    /// slot of its own. Without one, nothing is touched at all and the caller
-    /// hands over whole packages instead.
+    /// <b>Nothing is created and nothing is lost.</b> Each slot gives up what the
+    /// fill says leaves it, what the contract needs goes across, and the remainder
+    /// goes back in the bag. Where the remainder goes is the part that has to be
+    /// right: a slot the last package leaves empties itself and takes the
+    /// remainder back, while a slot that still holds some keeps them and the
+    /// remainder needs a place of its own. Without one, nothing is touched at all
+    /// and the caller hands over whole packages instead.
     /// </para>
     /// </remarks>
     private static Il2CppSystem.Collections.Generic.List<ItemInstance> Cut(
@@ -288,7 +313,8 @@ internal static class HandoverGoods
         int units,
         out int unitsTaken,
         out string said,
-        out string why)
+        out string why,
+        Il2CppSystem.Collections.Generic.List<ItemInstance> handBack)
     {
         var taken = new Il2CppSystem.Collections.Generic.List<ItemInstance>();
         unitsTaken = 0;
@@ -300,10 +326,25 @@ internal static class HandoverGoods
             return taken;
         }
 
-        // Both sides of the cut, made before anything is disturbed, so a failure
-        // here leaves the bag exactly as it was.
+        // Everything that crosses and everything that comes back, made before
+        // anything is disturbed, so a failure here leaves the bag exactly as it
+        // was.
         ProductItemInstance going = plan.Chosen.Product.GetCopy(plan.Split.Portions)
             ?.TryCast<ProductItemInstance>();
+
+        var whole = new ItemInstance[candidates.Count];
+
+        for (int at = 0; at < candidates.Count; at++)
+        {
+            int items = plan.Fill.Whole(at);
+            whole[at] = items > 0 ? candidates[at].Product.GetCopy(items) : null;
+
+            if (items > 0 && whole[at] is null)
+            {
+                why = "the game would not copy the package";
+                return taken;
+            }
+        }
 
         var rest = new List<ProductItemInstance>(plan.Split.Leftover.Count);
 
@@ -329,25 +370,33 @@ internal static class HandoverGoods
 
         going.SetPackaging(plan.Portion);
 
+        // Read here, while the slots still hold what the sentence is about.
+        said = Said(plan, candidates);
+
         // Every slot is written once, and that is the rule this block exists to
         // keep.
         //
-        // ItemSlot.ChangeQuantity does not change a slot that has an owner — the
-        // player's inventory does. It works out the new count from what the slot
-        // holds locally and asks the owner to set it, and at zero it asks the owner
-        // to clear the slot. Whether the local slot has caught up by the next line
-        // is not something this code may assume. So a slot decremented and then
-        // written again in the same breath could still be read as holding the
-        // package that just left: "one brick, plus seventeen" would go to the owner
-        // as eighteen bricks, three hundred and forty units that never existed.
+        // ItemSlot.ChangeQuantity works out the new count from what the slot holds
+        // locally. The player's own slots apply it there and then, but a slot with
+        // an owner only asks the owner to set it, and this code does not lean on
+        // which kind it has. On one that has not caught up, a slot decremented and
+        // then written again in the same breath would still read as holding the
+        // package that just left: "one brick, plus seventeen" would become eighteen
+        // bricks, three hundred and forty units that never existed.
         //
-        // The one place that could happen is the slot the package came out of,
-        // when that package was alone in it and the remainder goes back there. That
-        // slot is not decremented and then refilled; it is given the remainder in a
-        // single write, which replaces the one package it held. SetStoredItem
-        // replacing a slot's contents is exactly the behaviour that destroyed
-        // nineteen jars once — and it is safe here and only here, because the plan
-        // offers this slot only when it holds that single package.
+        // It could happen in three places. A slot giving up a whole jar and the
+        // opened one at once: From is the one figure for both, so it goes down by
+        // two in one write, where two writes of one could leave a jar that was
+        // sent. A slot the whole part draws on and the remainder would stack onto:
+        // Room does not offer it.
+        //
+        // And the slot the opened package came out of, when no other package stays
+        // in it and the remainder goes back there. That slot is not decremented and
+        // then refilled; it is given the remainder in a single write, which replaces
+        // all it held. SetStoredItem replacing a slot's contents is exactly the
+        // behaviour that destroyed nineteen jars once — and it is safe here and only
+        // here, because the plan offers this slot only when everything in it is
+        // leaving.
         int back = -1;
         for (int i = 0; i < plan.Rooms.Count; i++)
         {
@@ -357,54 +406,86 @@ internal static class HandoverGoods
             }
         }
 
-        if (back < 0)
-        {
-            plan.Chosen.Slot.ChangeQuantity(-1, _internal: false);
-        }
+        IReadOnlyList<CutWrite> writes = PortionCut.Writes(plan.Fill, rest.Count, back);
+        int landed = 0;
 
-        for (int i = 0; i < rest.Count; i++)
+        _lastCut[CutKey(plan.Chosen.Product)] = UnityEngine.Time.realtimeSinceStartup;
+
+        for (; landed < writes.Count; landed++)
         {
+            CutWrite write = writes[landed];
+            ItemSlot slot = write.Lot >= 0 ? candidates[write.Lot].Slot : plan.Rooms[write.Stack];
+            ProductItemInstance stack = write.Stack >= 0 ? rest[write.Stack] : null;
+            bool stores = stack is not null && (write.Lot >= 0 || slot.ItemInstance is null);
+            int held = slot.Quantity;
+
             try
             {
-                if (i == back)
+                if (stores)
                 {
-                    plan.Rooms[i].SetStoredItem(rest[i], _internal: false);
-                }
-                else if (plan.Rooms[i].ItemInstance is null)
-                {
-                    plan.Rooms[i].SetStoredItem(rest[i], _internal: false);
+                    slot.SetStoredItem(stack, _internal: false);
                 }
                 else
                 {
-                    plan.Rooms[i].ChangeQuantity(rest[i].Quantity, _internal: false);
+                    slot.ChangeQuantity(stack is null ? -write.Packages : stack.Quantity, _internal: false);
                 }
             }
             catch (Exception error)
             {
-                // The package is open and part of its contents is away. Throwing
-                // rather than returning empty, and that is the point: the caller's
-                // fallback is to hand over whole packages using a plan made before
-                // any of this, and the bag it was made against no longer exists.
-                // Acting on it would take from a slot that has changed.
-                //
-                // So the handover is abandoned instead. The caller puts back what
-                // it was given, says so, and leaves the contract to the player.
+                // The bag is no longer the one the fallback's plan was made against,
+                // so there is no fallback: the handover is abandoned. A write can
+                // throw at any point, so the slot is asked how far it got. Storing
+                // clears what the slot held, then stores, then tells the rest of the
+                // game: a slot left empty by a replacing write gave up its goods and
+                // never took the stack.
+                bool emptied = stores && write.Lot >= 0 && slot.ItemInstance is null;
+                bool took = stores
+                    ? emptied || (slot.ItemInstance is not null && slot.ItemInstance.Pointer == stack.Pointer)
+                    : slot.Quantity != held;
+
+                Fetch(
+                    PortionCut.Out(writes, took ? landed + 1 : landed, plan.Fill, emptied),
+                    whole,
+                    going,
+                    rest,
+                    handBack);
+
                 throw new InvalidOperationException(
-                    $"a package was opened and the remainder would not go back in "
-                        + $"the bag ({error.Message}); what came off it is in your "
-                        + "inventory",
+                    $"a package was being opened and the inventory refused a write "
+                        + $"({error.Message}); what had left your slots goes back",
                     error);
             }
         }
 
-        _lastCut[CutKey(plan.Chosen.Product)] = UnityEngine.Time.realtimeSinceStartup;
-
-        taken.Add(going);
+        Fetch(PortionCut.Out(writes, writes.Count, plan.Fill), whole, going, rest, taken);
         unitsTaken = units;
         why = null;
-        said = Said(plan);
 
         return taken;
+    }
+
+    /// <summary>Add the goods <paramref name="goods"/> names to a list.</summary>
+    private static void Fetch(
+        CutGoods goods,
+        ItemInstance[] whole,
+        ProductItemInstance going,
+        List<ProductItemInstance> rest,
+        Il2CppSystem.Collections.Generic.List<ItemInstance> into)
+    {
+        foreach (int lot in goods.WholeLots)
+        {
+            into.Add(whole[lot]);
+        }
+
+        if (goods.Portion)
+        {
+            into.Add(going);
+        }
+
+        foreach (int stack in goods.Stacks)
+        {
+            into.Add(rest[stack]);
+        }
     }
 
     /// <summary>
@@ -418,10 +499,21 @@ internal static class HandoverGoods
     /// session that prints it settles it — which is cheaper than another evening
     /// of anybody's arithmetic.
     /// </remarks>
-    private static string Said(PlannedCut plan)
+    private static string Said(PlannedCut plan, List<CarriedProduct> candidates)
     {
         var rest = new List<string>(plan.Split.Leftover.Count);
+        var sent = new List<string>(candidates.Count + 1);
         int fresh = 0;
+
+        for (int at = 0; at < candidates.Count; at++)
+        {
+            if (plan.Fill.Whole(at) > 0)
+            {
+                sent.Add($"{plan.Fill.Whole(at)}x{Named(plan.Packagings, PerPackage(candidates[at].Product))}");
+            }
+        }
+
+        sent.Add($"{plan.Split.Portions}x{Named(plan.Packagings, plan.Split.PortionUnits)}");
 
         for (int i = 0; i < plan.Split.Leftover.Count; i++)
         {
@@ -440,7 +532,7 @@ internal static class HandoverGoods
             : $"taking {fresh} slot(s)";
 
         return $"opened 1x{Named(plan.Packagings, PerPackage(plan.Chosen.Product))}, "
-            + $"sent {plan.Split.Portions}x{Named(plan.Packagings, plan.Split.PortionUnits)}, "
+            + $"sent {string.Join(" + ", sent)}, "
             + $"put back {string.Join(" + ", rest)} {places} "
             + $"[a slot holds {StackLimit(plan.Chosen.Product)}]";
     }
@@ -519,11 +611,12 @@ internal static class HandoverGoods
 
         // One cut at a time, with a moment between them. A cut raises the count
         // on a stack the player already carries, and the count it raises from is
-        // what the slot holds locally; the game applies the change through the
-        // slot's owner and this code does not assume the local slot has caught up
-        // by the next contract. Two cuts of the same product in the same sweep
-        // would both start from the old count, and the second would put back the
-        // first one's baggies as if they had never arrived.
+        // what the slot holds locally. The player's own slots apply a change at
+        // once, but this code does not lean on the local slot having caught up by
+        // the next contract, for the same reason as in Cut. Two cuts of the same
+        // product in the same sweep would both start from the old count, and the
+        // second would put back the first one's baggies as if they had never
+        // arrived.
         //
         // Per product and grade, because that is what shares a stack: the two
         // lines of one contract are different products on different stacks and
@@ -531,14 +624,17 @@ internal static class HandoverGoods
         //
         // Asked here, in the plan, so the second contract waits for the next
         // sweep rather than being claimed and then refused.
-        int at = PortionCut.Opened(lots, units);
-        if (at < 0)
+        PackageFill fill = PackagePlan.Fill(lots, units, mayCut: true);
+        // Only overshoot reaches here, and an overshooting fill always has a package
+        // to open, so what stopped it is the screen.
+        if (!fill.Cuts)
         {
-            why = "nothing in your bag was worth opening";
+            why = $"a handover holds {PackagePlan.MostPositions} stacks and these whole "
+                + "packages leave no place for the portion";
             return default;
         }
 
-        CarriedProduct chosen = candidates[at];
+        CarriedProduct chosen = candidates[fill.Opened];
 
         if (_lastCut.TryGetValue(CutKey(chosen.Product), out float then)
             && UnityEngine.Time.realtimeSinceStartup - then < SecondsBetweenCuts)
@@ -563,10 +659,20 @@ internal static class HandoverGoods
 
         int limit = StackLimit(chosen.Product);
 
+        // Every slot this fill takes anything out of. Its count is about to change,
+        // so nothing else may be written to it.
+        var drawn = new List<ItemSlot>(candidates.Count);
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (fill.From(i) > 0)
+            {
+                drawn.Add(candidates[i].Slot);
+            }
+        }
+
         PortionSplit split = PortionCut.Split(
-            chosen.Product.Quantity,
-            PerPackage(chosen.Product),
-            units,
+            fill,
+            lots,
             sizes,
 
             limit,
@@ -575,13 +681,13 @@ internal static class HandoverGoods
             // this very product, one figure per packaging. Without it the choice
             // of packaging is made blind, and the owner counted what that costs
             // before the code did: "Ich brauche pro Produkt immer drei Plätze."
-            RoomBeside(chosen.Product, packagings));
+            RoomBeside(chosen.Product, packagings, drawn));
 
         if (!split.Possible)
         {
-            int over = PerPackage(chosen.Product) - units;
+            int over = PerPackage(chosen.Product) - fill.Portion;
 
-            why = $"{units} does not go into a single packaging, or the {over} left "
+            why = $"{fill.Portion} does not go into a single packaging, or the {over} left "
                 + "over will not go back in at all";
             return default;
         }
@@ -603,24 +709,24 @@ internal static class HandoverGoods
         // stopped existing. The rollback written to undo a failed cut did the same
         // thing, in exactly the case where it mattered. There is no rollback now,
         // because nothing is replaced — a slot is only ever written when it is
-        // known to be empty, and the source slot is only ever reduced by one
-        // package.
+        // known to be empty, and the source slot is only ever reduced by the
+        // packages the fill says leave it.
         var rooms = new List<ItemSlot>(split.Leftover.Count);
 
-        // The opened package was alone in its slot, so that slot empties itself as
-        // the package leaves and is a place the remainder can use. Offered rather
+        // Nothing stays in the opened package's slot, so that slot empties itself
+        // as the fill leaves and is a place the remainder can use. Offered rather
         // than assigned: a stack that fits beside its own kind costs no slot at
         // all, and spending this one before trying that would leave the bag
         // fuller than it needs to be.
         ItemSlot emptying = split.SlotsNeeded < split.Leftover.Count ? chosen.Slot : null;
 
-        if (!Room(rooms, chosen.Product, split, packagings, emptying, out why, out worthWaiting))
+        if (!Room(rooms, chosen.Product, split, packagings, emptying, drawn, out why, out worthWaiting))
         {
             return default;
         }
 
         why = null;
-        return new PlannedCut(chosen, split, packagings, portion, rooms);
+        return new PlannedCut(fill, chosen, split, packagings, portion, rooms);
     }
 
     /// <summary>
@@ -663,6 +769,7 @@ internal static class HandoverGoods
         PortionSplit split,
         List<PackagingDefinition> packagings,
         ItemSlot emptying,
+        List<ItemSlot> drawn,
         out string why,
         out bool worthWaiting)
     {
@@ -700,7 +807,7 @@ internal static class HandoverGoods
 
             // Beside its own kind first, then a slot that is already empty, and
             // only then the slot the opened package is leaving.
-            ItemSlot found = Beside(slots, rooms, want, stack.Packages)
+            ItemSlot found = Beside(slots, rooms, drawn, want, stack.Packages)
                 ?? Free(slots, rooms, want, stack.Packages)
                 ?? Emptying(emptying, rooms, want, stack.Packages);
 
@@ -731,10 +838,13 @@ internal static class HandoverGoods
     /// another baggie off the bench. <c>CanStackWith</c> is the game's own test for
     /// "the same thing", asked rather than reimplemented — quantities excluded,
     /// because how many are there is what <c>GetCapacityForItem</c> answers.
+    /// A slot in <paramref name="drawn"/> is never offered, however well it matches:
+    /// baggies going out whole and baggies coming back are two writes to one count.
     /// </remarks>
     private static ItemSlot Beside(
         Il2CppSystem.Collections.Generic.List<ItemSlot> slots,
         List<ItemSlot> rooms,
+        List<ItemSlot> drawn,
         ItemInstance want,
         int packages)
     {
@@ -742,7 +852,11 @@ internal static class HandoverGoods
         {
             ItemSlot slot = slots[i];
 
-            if (slot is null || Already(rooms, slot) || slot.IsLocked || slot.IsAddLocked)
+            if (slot is null
+                || Already(rooms, slot)
+                || Already(drawn, slot)
+                || slot.IsLocked
+                || slot.IsAddLocked)
             {
                 continue;
             }
@@ -836,14 +950,15 @@ internal static class HandoverGoods
     /// <para>
     /// The game's own two questions, asked rather than reimplemented:
     /// <c>CanStackWith</c> for "the same thing" and <c>GetCapacityForItem</c> for
-    /// "how many more". The slot the package is being taken out of is counted too
-    /// — it is the same product, and a remainder in the same packaging as what it
-    /// came from would simply go back on that pile.
+    /// "how many more". The slots the fill draws on are left out: they are not room,
+    /// because <see cref="Beside"/> will not write to them, and a promise it cannot
+    /// keep would package the remainder for a place that is not there.
     /// </para>
     /// </remarks>
     private static List<int> RoomBeside(
         ProductItemInstance product,
-        List<PackagingDefinition> packagings)
+        List<PackagingDefinition> packagings,
+        List<ItemSlot> drawn)
     {
         var room = new List<int>(packagings.Count);
 
@@ -879,7 +994,7 @@ internal static class HandoverGoods
             {
                 ItemSlot slot = slots[at];
 
-                if (slot is null || slot.IsLocked || slot.IsAddLocked)
+                if (slot is null || Already(drawn, slot) || slot.IsLocked || slot.IsAddLocked)
                 {
                     continue;
                 }
@@ -953,18 +1068,21 @@ internal static class HandoverGoods
     }
 
     /// <summary>
-    /// A cut worked out and not yet made: the package to open, how both sides are
-    /// packaged, and a slot for every stack of the remainder.
+    /// A cut worked out and not yet made: the fill it carries out, the package to
+    /// open, how both sides are packaged, and a slot for every stack of the
+    /// remainder.
     /// </summary>
     private readonly struct PlannedCut
     {
         internal PlannedCut(
+            PackageFill fill,
             CarriedProduct chosen,
             PortionSplit split,
             List<PackagingDefinition> packagings,
             PackagingDefinition portion,
             List<ItemSlot> rooms)
         {
+            Fill = fill;
             Chosen = chosen;
             Split = split;
             Packagings = packagings;
@@ -974,6 +1092,9 @@ internal static class HandoverGoods
 
         /// <summary>Whether the bag can carry this cut out.</summary>
         public bool Possible => Rooms is not null;
+
+        /// <summary>The decision itself, the one the plan made.</summary>
+        public PackageFill Fill { get; }
 
         public CarriedProduct Chosen { get; }
 
@@ -991,7 +1112,7 @@ internal static class HandoverGoods
         public List<ItemSlot> Rooms { get; }
     }
 
-    /// <summary>Whether this slot has already been set aside for another stack.</summary>
+    /// <summary>Whether this slot is already in the list.</summary>
     private static bool Already(List<ItemSlot> rooms, ItemSlot slot)
     {
         for (int i = 0; i < rooms.Count; i++)
@@ -1173,29 +1294,69 @@ internal static class HandoverGoods
 
     /// <summary>
     /// Put goods back. Called when the handover could not be completed after
-    /// the items were already taken, so that a failure costs nothing.
+    /// the items were already taken, so that a failure costs nothing if the bag
+    /// has the room.
     /// </summary>
-    public static void Return(Il2CppSystem.Collections.Generic.List<ItemInstance> items)
+    /// <remarks>
+    /// <b>It may not have.</b> A cut can spend the slot its packages left, and the
+    /// game's own way of adding to the inventory drops what will not fit without a
+    /// word, with nothing in a pocket to put it down with. So this adds what fits
+    /// and says what did not.
+    /// </remarks>
+    /// <returns>
+    /// What could not go back, in packages, or null when everything did.
+    /// </returns>
+    public static string Return(Il2CppSystem.Collections.Generic.List<ItemInstance> items)
     {
-        if (items is null || !PlayerSingleton<PlayerInventory>.InstanceExists)
+        if (items is null)
         {
-            return;
+            return null;
         }
 
-        PlayerInventory inventory = PlayerSingleton<PlayerInventory>.Instance;
-        if (inventory == null)
-        {
-            return;
-        }
+        PlayerInventory inventory = PlayerSingleton<PlayerInventory>.InstanceExists
+            ? PlayerSingleton<PlayerInventory>.Instance
+            : null;
+
+        var gone = new List<string>();
 
         for (int i = 0; i < items.Count; i++)
         {
             ItemInstance item = items[i];
-            if (item is not null)
+            if (item is null)
             {
-                inventory.AddItemToInventory(item);
+                continue;
+            }
+
+            // Asked of a copy of that size: the game weighs a stack against the
+            // quantity of the item it is shown, not the figure it is passed. And
+            // again for what is left, because each answer speaks for one stack.
+            int left = item.Quantity;
+            bool added = inventory != null;
+
+            while (left > 0 && added)
+            {
+                int fits = left;
+                while (fits > 0 && !inventory.CanItemFitInInventory(item.GetCopy(fits), fits))
+                {
+                    fits--;
+                }
+
+                added = fits > 0;
+
+                if (added)
+                {
+                    inventory.AddItemToInventory(item.GetCopy(fits));
+                    left -= fits;
+                }
+            }
+
+            if (left > 0)
+            {
+                gone.Add($"{left}x{item.Name}");
             }
         }
+
+        return gone.Count == 0 ? null : string.Join(" + ", gone);
     }
 
     /// <summary>One packaged product, and the slot it is sitting in.</summary>
