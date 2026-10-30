@@ -35,6 +35,10 @@ $1,309**, and not one handover screen was filled in by hand.
   gets the negotiated prices and scheduled deals. Anyone who installs it too gets
   their own handovers done, and the money goes to whoever delivered.
 
+**Heads-up for multiplayer:** a handover always comes out of the inventory of
+the player whose copy runs it. With the mod on the host, that is the **host's**
+inventory, and the money goes to the host. So the host carries the goods.
+
 One page of switches on your in-game phone. Everything is off until you turn it
 on. Delete the two files and your save still loads in the plain game.
 
